@@ -47,24 +47,40 @@ func Evm(code []byte) ([]*big.Int, bool) {
 			n := len(stack)
 			a,b := stack[n-1], stack[n-2]
 			result := wrap(new(big.Int).Sub(a,b))
-			stack = pop(stack)
-			stack = pop(stack)
-			stack = push(stack, result)
+			stack = pop2AndPush(stack, result)
 		case 0x04: //DIVISION 
 			n := len(stack)
 			a,b := stack[n-1], stack[n-2]
 			if b.Cmp(big.NewInt(0)) == 0 {
-				stack = pop(stack)
-				stack = pop(stack)
-				stack = push(stack, big.NewInt(0))
+				stack = pop2AndPush(stack, big.NewInt(0))
 				continue 
 			}
 			result := wrap(new(big.Int).Div(a,b))
-			stack = pop(stack)
-			stack = pop(stack)
-			stack = push(stack,result)
-
-	}}
+			stack = pop2AndPush(stack, result)
+		case 0x06: //MOD 
+			n := len(stack)
+			a,modulo := stack[n-1], stack[n-2]
+			result := mod(a, modulo)
+			stack = pop2AndPush(stack, result)
+		case 0x08: //ADDMOD
+			n := len(stack)
+			a , b , c := stack[n-1], stack[n-2], stack[n-3] 
+			add := wrap(new(big.Int).Add(a,b))
+			result := mod(add, c) 
+			for i := 0;i < 3;i++ {
+				stack = pop(stack)
+			}
+			stack = push(stack, result)
+		case 0x09: //MULMOD 
+			n := len(stack)
+			a , b , c := stack[n-1], stack[n-2], stack[n-3] 
+			mul := new(big.Int).Mul(a,b)
+			result := wrap(mod(mul, c))
+			for i := 0;i < 3;i++ {
+				stack = pop(stack)
+			}
+			stack = push(stack, result)
+	}}	
 
 	return reverse(stack), true
 }
@@ -106,4 +122,18 @@ func wrap(num *big.Int) (*big.Int) {
 	modulo := new(big.Int).Lsh(big.NewInt(1), 256)
 	result := num.Mod(num, modulo)
 	return result 
+}
+
+func pop2AndPush(stack []*big.Int, num *big.Int) ([]*big.Int){
+	stack = pop(stack)
+	stack = pop(stack)
+	stack = push(stack,num)
+	return stack
+}
+
+func mod(a *big.Int, modulo *big.Int) *big.Int {
+	if modulo.Cmp(big.NewInt(0)) == 0 {
+		return big.NewInt(0)
+	}
+	return new(big.Int).Mod(a, modulo)
 }
