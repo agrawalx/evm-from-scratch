@@ -24,8 +24,64 @@ func Evm(code []byte) ([]*big.Int, bool) {
 		pc++
 
 		// TODO: Implement the EVM here!
-		_ = op // delete this; it's only here to make the compiler think you're already using `op`
-	}
+		if op >= 0x60 && op <= 0x7f { //PUSH1 To PUSH32 	
+			pushsize := int(op - 0x5f)
+			valueBytes := code[pc:pc +pushsize]
+			pc += pushsize
+			value := new(big.Int).SetBytes(valueBytes)
+			stack = push(stack, value)
+			continue 
+		}
+		switch op {
+		case 0x00: // STOP 
+			return stack, true
+		case 0x5f: // PUSH0 
+			stack = push(stack, big.NewInt(0))
+		case 0x50: //POP 
+			stack = pop(stack)
+		case 0x01: //ADD 
+			stack = add(stack)
+		case 0x02: //MULTIPLY 
+			stack = mul(stack)
+	}}
 
-	return stack, true
+	return reverse(stack), true
+}
+
+func push(stack []*big.Int, num *big.Int) ([]*big.Int) {
+	stack = append(stack, num)
+	return stack 
+}
+func reverse(stack []*big.Int) ([]*big.Int) {
+	var reversed_stack []*big.Int 
+	n := len(stack)
+	for i := 0; i < n; i++ {
+		reversed_stack = append(reversed_stack, stack[n-i-1])
+	}
+	return reversed_stack
+}
+
+func pop(stack []*big.Int) ([]*big.Int) {
+	stack = stack[:len(stack)-1]
+	return stack
+}
+func add(stack []*big.Int) ([]*big.Int) {
+	n := len(stack) 
+	result := new(big.Int).Add(stack[n-1],stack[n-2])
+	modulo := new(big.Int).Lsh(big.NewInt(1), 256)
+	result = result.Mod(result, modulo)
+	stack = pop(stack)
+	stack = pop(stack)
+	stack = push(stack, result)
+	return stack 
+}
+func mul(stack []*big.Int) ([]*big.Int) {
+	n := len(stack) 
+	result := new(big.Int).Mul(stack[n-1],stack[n-2])
+	modulo := new(big.Int).Lsh(big.NewInt(1), 256)
+	result = result.Mod(result, modulo)
+	stack = pop(stack)
+	stack = pop(stack)
+	stack = push(stack, result)
+	return stack 
 }
