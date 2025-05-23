@@ -80,8 +80,123 @@ func Evm(code []byte) ([]*big.Int, bool) {
 				stack = pop(stack)
 			}
 			stack = push(stack, result)
-	}}	
+		case 0x0a: //EXP 
+			n := len(stack)
+			a, power := stack[n-1] , stack[n-2]
+			result := new(big.Int).Exp(a,power,nil)
+			stack = pop2AndPush(stack, result)
+		case 0x0b: //SIGNEXTEND
+			n := len(stack)
+			value , byteIndex := stack[n-2] , stack[n-1]
+			idx := int(byteIndex.Uint64())
+			padded := make([]byte, 32)
+        	value.FillBytes(padded)
+			signByte := padded[31-idx]
+			signBit := (signByte >> 7) & 1
+			mask := new(big.Int).Lsh(big.NewInt(1), uint((idx+1)*8))
+			mask.Sub(mask, big.NewInt(1))
 
+			var result *big.Int
+			if signBit == 0 {
+				// Positive number, clear upper bits
+				result = new(big.Int).And(value, mask)
+			} else {
+				// Negative number, sign-extend upper bits
+				negOne := new(big.Int).Sub(mask, big.NewInt(1))
+				result = new(big.Int).Or(value, new(big.Int).Not(negOne))
+			}
+
+			// Mask result to 256 bits unsigned representation
+			mask256 := new(big.Int).Lsh(big.NewInt(1), 256)
+			mask256.Sub(mask256, big.NewInt(1))
+			result.And(result, mask256)
+
+			stack = pop2AndPush(stack, result)
+			
+		case 0x05: //SDIV 
+			n := len(stack)
+			num , den := stack[n-1] , stack[n-2]
+			if den.Cmp(big.NewInt(0)) == 0 {
+				stack = pop2AndPush(stack, big.NewInt(0))
+				break
+			}
+			signedNum := toSigned(num)
+			signedDen := toSigned(den)
+			result := wrap(new(big.Int).Div(signedNum,signedDen))
+			stack = pop2AndPush(stack,result)
+		case 0x07: //SMOD 
+			n := len(stack)
+			num, mod := stack[n-1] , stack[n-2]
+			if mod.Cmp(big.NewInt(0)) == 0 {
+				stack = pop2AndPush(stack, big.NewInt(0))
+				break
+			}
+			signedNum := toSigned(num)
+			signedMod := toSigned(mod)
+			absNum := new(big.Int).Abs(signedNum)
+			absMod := new(big.Int).Abs(signedMod)
+
+			remainder := new(big.Int).Mod(absNum, absMod)
+
+			if signedNum.Sign() < 0 {
+				remainder.Neg(remainder)
+			}
+
+			result := wrap(remainder)
+			stack = pop2AndPush(stack, result)
+		case 0x10: 
+			n := len(stack)
+			left , right := stack[n-1] , stack[n-2]
+			result := new(big.Int)
+			if left.Cmp(right) < 0 {
+				result = big.NewInt(1) 
+			} else {
+				result = big.NewInt(0)
+			}
+			stack = pop2AndPush(stack, result)
+		case 0x11: 
+			n:= len(stack)
+			left , right := stack[n-1] , stack[n-2]
+			result := new(big.Int)
+			if right.Cmp(left) < 0 {
+				result = big.NewInt(1) 
+			} else {
+				result = big.NewInt(0)
+			}
+			stack = pop2AndPush(stack, result)
+		case 0x12: 
+			n:= len(stack)
+			left , right := toSigned(stack[n-1]) , toSigned(stack[n-2])
+			result := new(big.Int)
+			if left.Cmp(right) < 0 {
+				result = big.NewInt(1) 
+			} else {
+				result = big.NewInt(0)
+			}
+			stack = pop2AndPush(stack, result)
+		case 0x13: 
+			n:= len(stack)
+			left , right := toSigned(stack[n-1]) , toSigned(stack[n-2])
+			result := new(big.Int)
+			if right.Cmp(left) < 0 {
+				result = big.NewInt(1) 
+			} else {
+				result = big.NewInt(0)
+			}
+			stack = pop2AndPush(stack, result)
+		case 0x14: 
+			n:= len(stack)
+			left , right := stack[n-1] , stack[n-2]
+			result := new(big.Int)
+			if right.Cmp(left) == 0 {
+				result = big.NewInt(1) 
+			} else {
+				result = big.NewInt(0)
+			}
+			stack = pop2AndPush(stack, result)
+		}
+		
+	}
 	return reverse(stack), true
 }
 
@@ -136,4 +251,12 @@ func mod(a *big.Int, modulo *big.Int) *big.Int {
 		return big.NewInt(0)
 	}
 	return new(big.Int).Mod(a, modulo)
+}
+
+func toSigned(x *big.Int) *big.Int {
+	if x.Bit(255) == 1 {
+		// If MSB is set, it's negative
+		return new(big.Int).Sub(x, new(big.Int).Lsh(big.NewInt(1), 256))
+	}
+	return new(big.Int).Set(x)
 }
